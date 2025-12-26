@@ -1360,6 +1360,12 @@ module Crystal
     def_equals_and_hash string
   end
 
+  class RequireCpp < Require
+    def initialize(str)
+      super(str)
+    end
+  end
+
   class When < ASTNode
     property conds : Array(ASTNode)
     property body : ASTNode

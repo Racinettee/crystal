@@ -1,3 +1,5 @@
+require "clang"
+
 # Base visitor for semantic analysis. It traverses the whole
 # ASTNode tree, keeping a `current_type` in context, which corresponds
 # to the type being visited according to class/module/lib definitions.
@@ -27,6 +29,30 @@ abstract class Crystal::SemanticVisitor < Crystal::Visitor
     @in_is_a = false
   end
 
+  def visit(node : RequireCpp)
+    puts "Requiring a c++ file??"
+
+    if inside_exp?; node.raise "can't require dynamically"; end
+
+    location = node.location
+    filename = node.string
+    relative_to = location.try &.original_filename
+
+    files = [
+      Clang::UnsavedFile.new("input.cpp", "#include \"#{node.string}\""),
+    ]
+    # its probably time to invoke clang and parse the header which node refers to
+    index = Clang::Index.new()
+    tu = Clang::TranslationUnit.from_source(index, files, [
+      "-I/usr/bin/../lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13",
+      "-I/usr/bin/../lib/gcc/x86_64-linux-gnu/13/../../../../include/x86_64-linux-gnu/c++/13",
+      "-I/usr/bin/../lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/backward",
+      "-I/usr/lib/llvm-18/lib/clang/18/include",
+      "-I/usr/local/include",
+      "-I/usr/include/x86_64-linux-gnu",
+      "-I/usr/include",
+    ])
+  end
   # Transform require to its source code.
   # The source code can be a Nop if the file was already required.
   def visit(node : Require)

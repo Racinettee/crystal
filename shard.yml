@@ -18,6 +18,9 @@ dependencies:
   sanitize:
     github: straight-shoota/sanitize
     commit: 75c141b619c77956e88f557149566cd28876398b
+  clang:
+    github: crystal-lang/clang.cr
+    branch: master
 
 license: Apache-2.0 WITH Swift-exception
 

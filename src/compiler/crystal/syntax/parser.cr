@@ -2756,7 +2756,11 @@ module Crystal
 
       skip_space
 
-      Require.new(string_literal.value).at_end(string_literal)
+      if string_literal.value.ends_with?(".hpp")
+        RequireCpp.new(string_literal.value).at_end(string_literal)
+      else
+        Require.new(string_literal.value).at_end(string_literal)
+      end
     end
 
     def parse_case

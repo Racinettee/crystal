@@ -10,3 +10,6 @@ shards:
   sanitize:
     git: https://github.com/straight-shoota/sanitize.git
     version: 0.1.0+git.commit.75c141b619c77956e88f557149566cd28876398b
+  clang:
+    git: https://github.com/crystal-lang/clang.cr.git
+    version: 0.3.0+git.commit.0d56959e75ba9c8bdff8085d6ed30e205ac0bebf
