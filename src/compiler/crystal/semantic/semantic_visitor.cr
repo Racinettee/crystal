@@ -29,8 +29,75 @@ abstract class Crystal::SemanticVisitor < Crystal::Visitor
     @in_is_a = false
   end
 
+  private def visit_cpp_nodes(fileOfInterest, parent, deep=0)
+    ast_nodes = Array(ASTNode).new()
+
+    parent.visit_children do |cursor|
+      if deep == 0
+        unless cursor.kind.macro_definition? ||
+          cursor.kind.macro_expansion? ||
+          cursor.kind.inclusion_directive?
+          puts
+        end
+      else
+        print " " * deep
+      end
+
+      puts "#{cursor.kind}: spelling=#{cursor.spelling} type.kind=#{cursor.type.kind} type.spelling=#{cursor.type.spelling.inspect} at #{cursor.location}"
+
+      case cursor.kind
+      when .class_decl?
+        puts [:class, cursor.type.size_of].inspect
+      when .field_decl?
+        puts [:field, cursor.offset_of_field].inspect
+      when .function_decl?
+        # create an annotation to define the function extern, with whatever the mangled name would be
+        mangling_attr = Crystal::Annotation.new(
+          path: Crystal::Path.new("External"),
+          args: [Crystal::StringLiteral.new(cursor.mangling)] of Crystal::ASTNode
+        )
+        # create a function def
+        func_def = Crystal::Def.new(
+          name: cursor.spelling.underscore.downcase,
+          args: [] of Crystal::Arg,
+          return_type: Crystal::Path.new("Void"),
+          body: nil,
+        )
+
+        func_def.annotations = {@program.extern_annotation => [mangling_attr]}
+        ast_nodes << func_def
+        puts [:function, cursor.mangling].inspect
+      when .constructor?
+        puts [:constructor, cursor.cxx_manglings].inspect
+      when .destructor?
+        puts [:destructor, cursor.cxx_manglings].inspect
+      #when .cxx_method?
+      #  puts [:cxx_method, cursor.spelling].inspect
+      when .cxx_access_specifier?
+        puts [:cxx_access_specifier, cursor.cxx_access_specifier].inspect
+      end
+
+      if "#{cursor.location}".includes?(fileOfInterest)
+        if cursor.kind == LibC::CXCursorKind::Namespace
+          module_nodes = visit_cpp_nodes(fileOfInterest, cursor, deep + 2)
+          # we've found a namespace
+          # create an equivalent module def
+          module_def = Crystal::ModuleDef.new(
+            name: Crystal::Path.new(cursor.spelling),
+            body: module_nodes
+          )
+          ast_nodes << module_def
+        else
+          visit_cpp_nodes(fileOfInterest, cursor, deep + 2)
+        end
+      end
+      Clang::ChildVisitResult::Continue
+    end
+    ast_nodes
+  end
+
   def visit(node : RequireCpp)
-    puts "Requiring a c++ file??"
+    puts "Requiring a c++ header file"
 
     if inside_exp?; node.raise "can't require dynamically"; end
 
@@ -38,11 +105,18 @@ abstract class Crystal::SemanticVisitor < Crystal::Visitor
     filename = node.string
     relative_to = location.try &.original_filename
 
+    puts "Building the virtual source file"
+    # its probably time to invoke clang and parse the header which node refers to
+    index = Clang::Index.new()
+
     files = [
       Clang::UnsavedFile.new("input.cpp", "#include \"#{node.string}\""),
     ]
-    # its probably time to invoke clang and parse the header which node refers to
-    index = Clang::Index.new()
+    
+    options = Clang::TranslationUnit.default_options |
+      Clang::TranslationUnit::Options::DetailedPreprocessingRecord |
+      Clang::TranslationUnit::Options::SkipFunctionBodies
+
     tu = Clang::TranslationUnit.from_source(index, files, [
       "-I/usr/bin/../lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13",
       "-I/usr/bin/../lib/gcc/x86_64-linux-gnu/13/../../../../include/x86_64-linux-gnu/c++/13",
@@ -51,7 +125,17 @@ abstract class Crystal::SemanticVisitor < Crystal::Visitor
       "-I/usr/local/include",
       "-I/usr/include/x86_64-linux-gnu",
       "-I/usr/include",
-    ])
+    ], options)
+
+    puts "Visiting the file, here's what I found"
+
+    cpp2crystal_shadow = visit_cpp_nodes(filename, tu.cursor)
+
+    expanded = Expressions.from(cpp2crystal_shadow)
+    node.expanded = expanded
+    node.bind_to(expanded)
+    puts cpp2crystal_shadow.inspect
+    false
   end
   # Transform require to its source code.
   # The source code can be a Nop if the file was already required.

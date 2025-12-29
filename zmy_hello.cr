@@ -1,3 +1,3 @@
 require "./zhello.hpp"
 
-puts "hi"
+Hello.say_hi()
