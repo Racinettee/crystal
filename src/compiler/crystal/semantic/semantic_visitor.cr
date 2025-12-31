@@ -29,7 +29,7 @@ abstract class Crystal::SemanticVisitor < Crystal::Visitor
     @in_is_a = false
   end
 
-  private def visit_cpp_nodes(fileOfInterest, parent, deep=0)
+  private def visit_cpp_nodes(fileOfInterest, parent, location, deep=0)
     ast_nodes = Array(ASTNode).new()
 
     parent.visit_children do |cursor|
@@ -79,16 +79,19 @@ abstract class Crystal::SemanticVisitor < Crystal::Visitor
 
       if "#{cursor.location}".includes?(fileOfInterest)
         if cursor.kind == LibC::CXCursorKind::Namespace
-          module_nodes = visit_cpp_nodes(fileOfInterest, cursor, deep + 2)
+          module_nodes = visit_cpp_nodes(fileOfInterest, cursor, location, deep + 2)
           # we've found a namespace
           # create an equivalent module def
           module_def = Crystal::ModuleDef.new(
             name: Crystal::Path.new(cursor.spelling),
-            body: module_nodes
+            body: Expressions.from(module_nodes),
           )
+
+          module_def.location = location
+          #Wmodule_def.resolved_type = NonGenericModuleType.new(@program, nil, cursor.spelling)
           ast_nodes << module_def
         else
-          visit_cpp_nodes(fileOfInterest, cursor, deep + 2)
+          visit_cpp_nodes(fileOfInterest, cursor, location, deep + 2)
         end
       end
       Clang::ChildVisitResult::Continue
@@ -129,12 +132,17 @@ abstract class Crystal::SemanticVisitor < Crystal::Visitor
 
     puts "Visiting the file, here's what I found"
 
-    cpp2crystal_shadow = visit_cpp_nodes(filename, tu.cursor)
+    cpp2crystal_shadow = visit_cpp_nodes(filename, tu.cursor, node.location)
 
     expanded = Expressions.from(cpp2crystal_shadow)
+    
+    # prints the shadow ast
+    puts cpp2crystal_shadow.inspect
+
+    expanded = @program.normalize(expanded)
+    expanded.accept(self)
     node.expanded = expanded
     node.bind_to(expanded)
-    puts cpp2crystal_shadow.inspect
     false
   end
   # Transform require to its source code.
