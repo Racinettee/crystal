@@ -46,6 +46,23 @@ class Crystal::TopLevelVisitor < Crystal::SemanticVisitor
     ReferenceStorageType
   end
 
+  private def cpp_type_to_crystal(clang_type : Clang::Type)
+    case clang_type.kind
+    when .int?
+      Crystal::Path.new("Int32")
+    when .float?
+      Crystal::Path.new("Float32")
+    when .double?
+      Crystal::Path.new("Float64")
+    when .void?
+      Crystal::Path.new("Void")
+    when .bool?
+      Crystal::Path.new("Bool")
+    when .pointer?
+
+    end
+  end
+
   private def visit_cpp_nodes(fileOfInterest, parent, location, deep=0)
     ast_nodes = Array(ASTNode).new()
 
@@ -68,21 +85,18 @@ class Crystal::TopLevelVisitor < Crystal::SemanticVisitor
       when .field_decl?
         puts [:field, cursor.offset_of_field].inspect
       when .function_decl?
-        # create an annotation to define the function extern, with whatever the mangled name would be
-        #mangling_attr = Crystal::Annotation.new(
-        #  path: Crystal::Path.new("External"),
-        #  args: [Crystal::StringLiteral.new(cursor.mangling)] of Crystal::ASTNode
-        #)
-        # create a function def
-        #func_def = Crystal::Def.new(
-        #  name: cursor.spelling.underscore.downcase,
-        #  args: [] of Crystal::Arg,
-        #  return_type: Crystal::Path.new("Void"),
-        #  body: nil,
-        #  receiver: Crystal::Var.new("self"),
-        #)
+        func_args = [] of Crystal::Arg
 
-        #func_def.annotations = {@program.extern_annotation => [mangling_attr]}
+        cursor.arguments.each_with_index do |arg, i|
+          argument_name = arg.spelling
+          if argument_name.empty?; argument_name = "arg#{i}"; end
+          
+          func_args << Crystal::Arg.new(
+            name: argument_name,
+
+          )
+        end
+
         fun_def = Crystal::FunDef.new(
           name: cursor.spelling.underscore.downcase,
           args: [] of Crystal::Arg,
@@ -111,7 +125,7 @@ class Crystal::TopLevelVisitor < Crystal::SemanticVisitor
           #  body: Expressions.from(module_nodes),
           #)
           lib_def = Crystal::LibDef.new(
-            name: Crystal::Path.new(cursor.spelling),
+            name: Crystal::Path.new("Lib#{cursor.spelling}"),
             body: Expressions.from(module_nodes)
           )
           lib_def.location = location

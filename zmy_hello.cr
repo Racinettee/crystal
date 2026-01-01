@@ -2,4 +2,11 @@
 require "./zhello.hpp"
 
 puts "trying to call say hi:"
-Hello.say_hi()
+LibHello.say_hi()
+
+module Hello
+    class Blah
+        def hello
+        end
+    end
+end
