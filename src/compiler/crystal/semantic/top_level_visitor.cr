@@ -60,7 +60,7 @@ class Crystal::TopLevelVisitor < Crystal::SemanticVisitor
         print " " * deep
       end
 
-      puts "#{cursor.kind}: spelling=#{cursor.spelling} type.kind=#{cursor.type.kind} type.spelling=#{cursor.type.spelling.inspect} at #{cursor.location}"
+      #puts "#{cursor.kind}: spelling=#{cursor.spelling} type.kind=#{cursor.type.kind} type.spelling=#{cursor.type.spelling.inspect} at #{cursor.location}"
 
       case cursor.kind
       when .class_decl?
@@ -79,6 +79,7 @@ class Crystal::TopLevelVisitor < Crystal::SemanticVisitor
           args: [] of Crystal::Arg,
           return_type: Crystal::Path.new("Void"),
           body: nil,
+          receiver: Crystal::Var.new("self"),
         )
 
         func_def.annotations = {@program.extern_annotation => [mangling_attr]}
