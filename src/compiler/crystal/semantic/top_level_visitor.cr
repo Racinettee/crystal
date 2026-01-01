@@ -69,21 +69,27 @@ class Crystal::TopLevelVisitor < Crystal::SemanticVisitor
         puts [:field, cursor.offset_of_field].inspect
       when .function_decl?
         # create an annotation to define the function extern, with whatever the mangled name would be
-        mangling_attr = Crystal::Annotation.new(
-          path: Crystal::Path.new("External"),
-          args: [Crystal::StringLiteral.new(cursor.mangling)] of Crystal::ASTNode
-        )
+        #mangling_attr = Crystal::Annotation.new(
+        #  path: Crystal::Path.new("External"),
+        #  args: [Crystal::StringLiteral.new(cursor.mangling)] of Crystal::ASTNode
+        #)
         # create a function def
-        func_def = Crystal::Def.new(
+        #func_def = Crystal::Def.new(
+        #  name: cursor.spelling.underscore.downcase,
+        #  args: [] of Crystal::Arg,
+        #  return_type: Crystal::Path.new("Void"),
+        #  body: nil,
+        #  receiver: Crystal::Var.new("self"),
+        #)
+
+        #func_def.annotations = {@program.extern_annotation => [mangling_attr]}
+        fun_def = Crystal::FunDef.new(
           name: cursor.spelling.underscore.downcase,
           args: [] of Crystal::Arg,
           return_type: Crystal::Path.new("Void"),
-          body: nil,
-          receiver: Crystal::Var.new("self"),
+          real_name: if cursor.mangling.starts_with?("__ZN"); cursor.mangling[1..-1]; else cursor.mangling; end,
         )
-
-        func_def.annotations = {@program.extern_annotation => [mangling_attr]}
-        ast_nodes << func_def
+        ast_nodes << fun_def
         puts [:function, cursor.mangling].inspect
       when .constructor?
         puts [:constructor, cursor.cxx_manglings].inspect
@@ -100,14 +106,17 @@ class Crystal::TopLevelVisitor < Crystal::SemanticVisitor
           module_nodes = visit_cpp_nodes(fileOfInterest, cursor, location, deep + 2)
           # we've found a namespace
           # create an equivalent module def
-          module_def = Crystal::ModuleDef.new(
+          #module_def = Crystal::ModuleDef.new(
+          #  name: Crystal::Path.new(cursor.spelling),
+          #  body: Expressions.from(module_nodes),
+          #)
+          lib_def = Crystal::LibDef.new(
             name: Crystal::Path.new(cursor.spelling),
-            body: Expressions.from(module_nodes),
+            body: Expressions.from(module_nodes)
           )
-
-          module_def.location = location
+          lib_def.location = location
           #Wmodule_def.resolved_type = NonGenericModuleType.new(@program, nil, cursor.spelling)
-          ast_nodes << module_def
+          ast_nodes << lib_def
         else
           visit_cpp_nodes(fileOfInterest, cursor, location, deep + 2)
         end
