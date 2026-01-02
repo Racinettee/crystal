@@ -59,7 +59,20 @@ class Crystal::TopLevelVisitor < Crystal::SemanticVisitor
     when .bool?
       Crystal::Path.new("Bool")
     when .pointer?
+      pointee = clang_type.pointee_type
 
+      if pointee.kind.char_s? || pointee.kind.char_u?
+        Crystal::Generic.new(
+          name: Crystal::Path.new("Pointer"),
+          type_vars: [Crystal::Path.new(["LibC", "Char"])] of Crystal::ASTNode)
+      else
+        Crystal::Generic.new(
+          name: Crystal::Path.new("Pointer"),
+          type_vars: [Crystal::Path.new("Void")] of Crystal::ASTNode
+        )
+      end
+    else
+      Crystal::Path.new("Void")
     end
   end
 
@@ -93,13 +106,13 @@ class Crystal::TopLevelVisitor < Crystal::SemanticVisitor
           
           func_args << Crystal::Arg.new(
             name: argument_name,
-
+            restriction: cpp_type_to_crystal(arg.type)
           )
         end
 
         fun_def = Crystal::FunDef.new(
           name: cursor.spelling.underscore.downcase,
-          args: [] of Crystal::Arg,
+          args: func_args,
           return_type: Crystal::Path.new("Void"),
           real_name: if cursor.mangling.starts_with?("__ZN"); cursor.mangling[1..-1]; else cursor.mangling; end,
         )

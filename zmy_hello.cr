@@ -3,6 +3,7 @@ require "./zhello.hpp"
 
 puts "trying to call say hi:"
 LibHello.say_hi()
+LibHello.say_hello_to("hudson".to_unsafe)
 
 module Hello
     class Blah
