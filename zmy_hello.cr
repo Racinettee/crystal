@@ -7,7 +7,8 @@ LibHello.say_hello_to("hudson".to_unsafe)
 puts LibHello.plus_one(1)
 
 person = LibHello::Greeter.new()
-LibHello.initialize_greeter(pointerof(person), "Garth".to_unsafe, 41)
+LibHello.initialize_greeter(pointerof(person), "Garth", 41)
 #person.name = "Garth".to_unsafe
 #person.age = 40
 LibHello.greet(pointerof(person))
+LibHello.deinitialize_greeter(pointerof(person))

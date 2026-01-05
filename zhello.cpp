@@ -28,6 +28,7 @@ namespace Hello
     Greeter::~Greeter()
     {
         std::free(name);
+        std::cout << "Freed\n";
     }
 
     void Greeter::Greet() const
