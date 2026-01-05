@@ -21,7 +21,7 @@ namespace Hello
 
     Greeter::Greeter(const char* name, int age)
     {
-        std::strcpy(this->name, name);
+        this->name = strdup(name);
         this->age = age;
     }
 

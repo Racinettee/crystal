@@ -68,6 +68,22 @@ module Crystal::ClangInterop
             # this bit is gonna add it directly to the enclosing scope instead of as a member of this
             # structs body
             ast_nodes << method_decl
+          when .constructor?
+            ctor_decl = visit_function_decl(ccursor, Crystal::Arg.new(
+              name: "this",
+              restriction: Crystal::Generic.new(
+                Crystal::Path.new("Pointer"),
+                [Crystal::Path.new(cursor.spelling)] of Crystal::ASTNode)
+            ), special_name: "initialize_#{cursor.spelling.downcase.underscore}")
+            ast_nodes << ctor_decl
+          when .destructor?
+            dtor_decl = visit_function_decl(ccursor, Crystal::Arg.new(
+              name: "this",
+              restriction: Crystal::Generic.new(
+                Crystal::Path.new("Pointer"),
+                [Crystal::Path.new(cursor.spelling)] of Crystal::ASTNode)
+            ), special_name: "deinitialize_#{cursor.spelling.downcase.underscore}")
+            ast_nodes << dtor_decl
           end
           Clang::ChildVisitResult::Continue
         end
@@ -84,8 +100,7 @@ module Crystal::ClangInterop
         puts [:constructor, cursor.cxx_manglings].inspect
       when .destructor?
         puts [:destructor, cursor.cxx_manglings].inspect
-      #when .cxx_method?
-      #  puts [:cxx_method, cursor.spelling].inspect
+
       when .cxx_access_specifier?
         puts [:cxx_access_specifier, cursor.cxx_access_specifier].inspect
       end
@@ -115,7 +130,7 @@ module Crystal::ClangInterop
     ast_nodes
   end
 
-  protected def visit_function_decl(cursor, this_pointer : Crystal::Arg? = nil)
+  protected def visit_function_decl(cursor, this_pointer : Crystal::Arg? = nil, special_name : String? = nil)
     func_args = [] of Crystal::Arg
 
     if this_pointer
@@ -133,7 +148,7 @@ module Crystal::ClangInterop
     end
 
     Crystal::FunDef.new(
-      name: cursor.spelling.underscore.downcase,
+      name: special_name || cursor.spelling.underscore.downcase,
       args: func_args,
       return_type: cpp_to_crystal_type(cursor.result_type),
       real_name: if cursor.mangling.starts_with?("__ZN"); cursor.mangling[1..-1]; else cursor.mangling; end,
