@@ -34,7 +34,6 @@ module Crystal::ClangInterop
         unless cursor.kind.macro_definition? ||
           cursor.kind.macro_expansion? ||
           cursor.kind.inclusion_directive?
-          puts
         end
       else
         print " " * deep
@@ -49,29 +48,37 @@ module Crystal::ClangInterop
         # add the type to the mapping in case the type is recursive
         @cplusplus_types[cursor.type] = cstruct
 
+        fields = Array(ASTNode).new()
+
+        cursor.visit_children do |ccursor|
+          case ccursor.kind
+          when .field_decl?
+            fields << Crystal::TypeDeclaration.new(
+              Crystal::Var.new(ccursor.spelling.underscore.downcase),
+              cpp_to_crystal_type(ccursor.type)
+            )
+          when .cxx_method?
+            method_decl = visit_function_decl(ccursor, Crystal::Arg.new(
+              name: "this",
+              restriction: Crystal::Generic.new(
+                Crystal::Path.new("Pointer"),
+                [Crystal::Path.new(cursor.spelling)] of Crystal::ASTNode)
+            ))
+            # structs in the lib definition can't contain methods, so
+            # this bit is gonna add it directly to the enclosing scope instead of as a member of this
+            # structs body
+            ast_nodes << method_decl
+          end
+          Clang::ChildVisitResult::Continue
+        end
+
+        cstruct.body = Expressions.from(fields)
+        ast_nodes << cstruct
+
         puts [:class, cursor.type.size_of].inspect
       when .field_decl?
         puts [:field, cursor.offset_of_field].inspect
-      when .function_decl?
-        func_args = [] of Crystal::Arg
-
-        cursor.arguments.each_with_index do |arg, i|
-          argument_name = arg.spelling
-          if argument_name.empty?; argument_name = "arg#{i}"; end
-          
-          func_args << Crystal::Arg.new(
-            name: argument_name,
-            restriction: cpp_to_crystal_type(arg.type)
-          )
-        end
-
-        fun_def = Crystal::FunDef.new(
-          name: cursor.spelling.underscore.downcase,
-          args: func_args,
-          return_type: cpp_to_crystal_type(cursor.result_type),
-          real_name: if cursor.mangling.starts_with?("__ZN"); cursor.mangling[1..-1]; else cursor.mangling; end,
-        )
-        ast_nodes << fun_def
+      when .function_decl? then ast_nodes << visit_function_decl(cursor)
         #puts fun_def.inspect
       when .constructor?
         puts [:constructor, cursor.cxx_manglings].inspect
@@ -106,5 +113,30 @@ module Crystal::ClangInterop
       Clang::ChildVisitResult::Continue
     end
     ast_nodes
+  end
+
+  protected def visit_function_decl(cursor, this_pointer : Crystal::Arg? = nil)
+    func_args = [] of Crystal::Arg
+
+    if this_pointer
+      func_args << this_pointer
+    end
+
+    cursor.arguments.each_with_index do |arg, i|
+      argument_name = arg.spelling
+      if argument_name.empty?; argument_name = "arg#{i}"; end
+      
+      func_args << Crystal::Arg.new(
+        name: argument_name,
+        restriction: cpp_to_crystal_type(arg.type)
+      )
+    end
+
+    Crystal::FunDef.new(
+      name: cursor.spelling.underscore.downcase,
+      args: func_args,
+      return_type: cpp_to_crystal_type(cursor.result_type),
+      real_name: if cursor.mangling.starts_with?("__ZN"); cursor.mangling[1..-1]; else cursor.mangling; end,
+    )
   end
 end

@@ -10,9 +10,11 @@ namespace Hello
 
     class Greeter
     {
-        std::string name;
+        char* name;
+        int age;
     public:
-        Greeter(const char* name);
+        Greeter(const char* name, int age);
+        ~Greeter();
 
         void Greet() const;
     };

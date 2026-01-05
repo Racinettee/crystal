@@ -6,15 +6,7 @@ LibHello.say_hello_to("hudson".to_unsafe)
 
 puts LibHello.plus_one(1)
 
-lib LibHello2
-    struct HelloStruct2
-        value : Int32
-    end
-end
-
-module Hello
-    class Blah
-        def hello
-        end
-    end
-end
+person = LibHello::Greeter.new()
+person.name = "Garth".to_unsafe
+person.age = 40
+LibHello.greet(pointerof(person))

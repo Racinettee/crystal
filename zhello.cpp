@@ -1,5 +1,5 @@
 #include "zhello.hpp"
-
+#include <cstring>
 #include <iostream>
 
 namespace Hello
@@ -19,12 +19,19 @@ namespace Hello
         return value + 1;
     }
 
-    Greeter::Greeter(const char* name): name(name)
+    Greeter::Greeter(const char* name, int age)
     {
+        std::strcpy(this->name, name);
+        this->age = age;
+    }
+
+    Greeter::~Greeter()
+    {
+        std::free(name);
     }
 
     void Greeter::Greet() const
     {
-        std::cout << "Hola, my name is " << name << "\n";
+        std::cout << "Hola, my name is " << name << ", I'm " << age << "\n";
     }
 }
