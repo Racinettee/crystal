@@ -6,6 +6,8 @@ namespace Hello
 
     void SayHelloTo(const char* person);
 
+    int PlusOne(int value);
+
     class Greeter
     {
         std::string name;

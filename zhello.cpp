@@ -14,6 +14,11 @@ namespace Hello
         std::cout << "Hello, " << person << "\n";
     }
 
+    int PlusOne(int value)
+    {
+        return value + 1;
+    }
+
     Greeter::Greeter(const char* name): name(name)
     {
     }

@@ -1,26 +1,20 @@
 require "clang"
 
 module Crystal::ClangInterop
-  @cplusplus_types = Hash(Clang::Type, Crystal::Path).new()
+  # Contains a mapping of c++ types to crystal types that have been generated
+  @cplusplus_types = Hash(Clang::Type, ASTNode).new()
 
   protected def cpp_to_crystal_type(clang_type : Clang::Type) : ASTNode
     case clang_type.kind
-    when .void?
-      Crystal::Path.new("Void")
-    when .bool?
-      Crystal::Path.new("Bool")
-    when .u_int?
-      Crystal::Path.new("UInt32")
-    when .int?
-      Crystal::Path.new("Int32")
-    when .long_long?
-      Crystal::Path.new("Int64")
-    when .u_long_long?
-      Crystal::Path.new("Uint64")
-    when .float?
-      Crystal::Path.new("Float32")
-    when .double?
-      Crystal::Path.new("Float64")
+    when .void? then Crystal::Path.new("Void")
+    when .bool? then Crystal::Path.new("Bool")
+    when .u_int? then Crystal::Path.new("UInt32")
+    when .int? then Crystal::Path.new("Int32")
+    when .long_long? then Crystal::Path.new("Int64")
+    when .u_long_long? then Crystal::Path.new("Uint64")
+    when .float? then Crystal::Path.new("Float32")
+    when .double? then Crystal::Path.new("Float64")
+    when .char_s?, .char_u? then Crystal::Path.new(["LibC", "Char"])
     when .pointer?
       pointee_type = cpp_to_crystal_type(clang_type.pointee_type)
 
@@ -28,8 +22,7 @@ module Crystal::ClangInterop
         Crystal::Path.new("Pointer"),
         [pointee_type] of Crystal::ASTNode
       )
-    else
-      Crystal::Path.new("Untyped")
+    else @cplusplus_types[clang_type]? || Crystal::Path.new("Untyped")
     end
   end
 
@@ -51,6 +44,11 @@ module Crystal::ClangInterop
 
       case cursor.kind
       when .class_decl?
+        cstruct = CStructOrUnionDef.new(name: cursor.spelling)
+
+        # add the type to the mapping in case the type is recursive
+        @cplusplus_types[cursor.type] = cstruct
+
         puts [:class, cursor.type.size_of].inspect
       when .field_decl?
         puts [:field, cursor.offset_of_field].inspect
@@ -70,11 +68,11 @@ module Crystal::ClangInterop
         fun_def = Crystal::FunDef.new(
           name: cursor.spelling.underscore.downcase,
           args: func_args,
-          return_type: Crystal::Path.new("Void"),
+          return_type: cpp_to_crystal_type(cursor.result_type),
           real_name: if cursor.mangling.starts_with?("__ZN"); cursor.mangling[1..-1]; else cursor.mangling; end,
         )
         ast_nodes << fun_def
-        puts [:function, cursor.mangling].inspect
+        #puts fun_def.inspect
       when .constructor?
         puts [:constructor, cursor.cxx_manglings].inspect
       when .destructor?
