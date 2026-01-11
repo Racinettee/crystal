@@ -58,32 +58,28 @@ module Crystal::ClangInterop
               cpp_to_crystal_type(ccursor.type)
             )
           when .cxx_method?
-            method_decl = visit_function_decl(ccursor, Crystal::Arg.new(
-              name: "this",
-              restriction: Crystal::Generic.new(
-                Crystal::Path.new("Pointer"),
-                [Crystal::Path.new(cursor.spelling)] of Crystal::ASTNode)
-            ))
             # structs in the lib definition can't contain methods, so
             # this bit is gonna add it directly to the enclosing scope instead of as a member of this
             # structs body
-            ast_nodes << method_decl
+            ast_nodes << visit_function_decl(ccursor, Crystal::Arg.new(
+              name: "this",
+              restriction: Crystal::Generic.new(
+                Crystal::Path.new("Pointer"),
+                [Crystal::Path.new(cursor.spelling)] of Crystal::ASTNode)))
           when .constructor?
-            ctor_decl = visit_function_decl(ccursor, Crystal::Arg.new(
+            ast_nodes << visit_function_decl(ccursor, Crystal::Arg.new(
               name: "this",
               restriction: Crystal::Generic.new(
                 Crystal::Path.new("Pointer"),
                 [Crystal::Path.new(cursor.spelling)] of Crystal::ASTNode)
             ), special_name: "initialize_#{cursor.spelling.downcase.underscore}")
-            ast_nodes << ctor_decl
           when .destructor?
-            dtor_decl = visit_function_decl(ccursor, Crystal::Arg.new(
+            ast_nodes << visit_function_decl(ccursor, Crystal::Arg.new(
               name: "this",
               restriction: Crystal::Generic.new(
                 Crystal::Path.new("Pointer"),
                 [Crystal::Path.new(cursor.spelling)] of Crystal::ASTNode)
             ), special_name: "deinitialize_#{cursor.spelling.downcase.underscore}")
-            ast_nodes << dtor_decl
           end
           Clang::ChildVisitResult::Continue
         end
@@ -95,34 +91,32 @@ module Crystal::ClangInterop
       when .field_decl?
         puts [:field, cursor.offset_of_field].inspect
       when .function_decl? then ast_nodes << visit_function_decl(cursor)
-        #puts fun_def.inspect
-      when .constructor?
-        puts [:constructor, cursor.cxx_manglings].inspect
-      when .destructor?
-        puts [:destructor, cursor.cxx_manglings].inspect
 
       when .cxx_access_specifier?
         puts [:cxx_access_specifier, cursor.cxx_access_specifier].inspect
+      
+      when .linkage_spec?
+        link_spec_nodes = visit_cpp_nodes(fileOfInterest, cursor, location, deep + 2)
+        ast_nodes.concat(link_spec_nodes)
       end
 
       if "#{cursor.location}".includes?(fileOfInterest)
         if cursor.kind == LibC::CXCursorKind::Namespace
           module_nodes = visit_cpp_nodes(fileOfInterest, cursor, location, deep + 2)
-          # we've found a namespace
-          # create an equivalent module def
-          #module_def = Crystal::ModuleDef.new(
-          #  name: Crystal::Path.new(cursor.spelling),
-          #  body: Expressions.from(module_nodes),
-          #)
           lib_def = Crystal::LibDef.new(
             name: Crystal::Path.new("Lib#{cursor.spelling}"),
             body: Expressions.from(module_nodes)
           )
           lib_def.location = location
-          #Wmodule_def.resolved_type = NonGenericModuleType.new(@program, nil, cursor.spelling)
           ast_nodes << lib_def
         else
-          visit_cpp_nodes(fileOfInterest, cursor, location, deep + 2)
+          module_nodes = visit_cpp_nodes(fileOfInterest, cursor, location, deep + 2)
+          lib_def = Crystal::LibDef.new(
+            name: Crystal::Path.new("Lib#{File.basename(fileOfInterest)}"),
+            body: Expressions.from(module_nodes)
+          )
+          lib_def.location = location
+          ast_nodes << lib_def
         end
       end
       Clang::ChildVisitResult::Continue
