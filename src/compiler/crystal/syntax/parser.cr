@@ -2755,8 +2755,12 @@ module Crystal
       string_literal = parse_string_literal_without_interpolation("require")
 
       skip_space
-
-      Require.new(string_literal.value).at_end(string_literal)
+      case string_literal.value
+      when .ends_with?(".hpp"), .ends_with?(".h"), .ends_with?(".hh")
+        RequireCpp.new(string_literal.value).at_end(string_literal)
+      else
+        Require.new(string_literal.value).at_end(string_literal)
+      end
     end
 
     def parse_case

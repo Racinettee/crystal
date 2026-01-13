@@ -1,3 +1,5 @@
+require "clang"
+
 # Base visitor for semantic analysis. It traverses the whole
 # ASTNode tree, keeping a `current_type` in context, which corresponds
 # to the type being visited according to class/module/lib definitions.

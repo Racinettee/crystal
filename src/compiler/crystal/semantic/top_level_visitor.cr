@@ -36,7 +36,7 @@ class Crystal::TopLevelVisitor < Crystal::SemanticVisitor
   # All finished hooks and their scope
   record FinishedHook, scope : ModuleType, macro : Macro
   @finished_hooks = [] of FinishedHook
-
+  
   @method_added_running = false
 
   @last_doc : String?
@@ -44,6 +44,55 @@ class Crystal::TopLevelVisitor < Crystal::SemanticVisitor
   # special types recognized for `@[Primitive]`
   private enum PrimitiveType
     ReferenceStorageType
+  end
+
+  include ClangInterop
+
+  def visit(node : RequireCpp)
+    puts "Requiring a c++ header file"
+
+    if inside_exp?; node.raise "can't require dynamically"; end
+
+    location = node.location
+    filename = node.string
+    relative_to = location.try &.original_filename
+
+    puts "Building the virtual source file"
+    # its probably time to invoke clang and parse the header which node refers to
+    index = Clang::Index.new()
+
+    files = [
+      Clang::UnsavedFile.new("input.cpp", "#include \"#{node.string}\""),
+    ]
+    
+    options = Clang::TranslationUnit.default_options |
+      Clang::TranslationUnit::Options::DetailedPreprocessingRecord |
+      Clang::TranslationUnit::Options::SkipFunctionBodies
+
+    tu = Clang::TranslationUnit.from_source(index, files, [
+      "-I/usr/bin/../lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13",
+      "-I/usr/bin/../lib/gcc/x86_64-linux-gnu/13/../../../../include/x86_64-linux-gnu/c++/13",
+      "-I/usr/bin/../lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/backward",
+      "-I/usr/lib/llvm-18/lib/clang/18/include",
+      "-I/usr/local/include",
+      "-I/usr/include/x86_64-linux-gnu",
+      "-I/usr/include",
+    ], options)
+
+    puts "Visiting the file, here's what I found"
+
+    cpp2crystal_shadow = visit_cpp_nodes(filename, tu.cursor, node.location)
+
+    expanded = Expressions.from(cpp2crystal_shadow)
+    
+    # prints the shadow ast
+    puts cpp2crystal_shadow.inspect
+
+    expanded = @program.normalize(expanded)
+    expanded.accept(self)
+    node.expanded = expanded
+    node.bind_to(expanded)
+    false
   end
 
   def visit(node : ClassDef)
